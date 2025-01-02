@@ -7,6 +7,7 @@ const { chatToken, videoToken, voiceToken } = require("./tokens");
 const { VoiceResponse } = require("twilio").twiml;
 
 const app = express();
+app.use(cors())
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(pino);
