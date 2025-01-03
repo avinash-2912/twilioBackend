@@ -6,8 +6,12 @@ const bodyParser = require("body-parser");
 const pino = require("express-pino-logger")();
 const { chatToken, videoToken, voiceToken } = require("./tokens");
 const { VoiceResponse } = require("twilio").twiml;
+const { mapMobileNumber, getMobileNumber } = require("./controllers/userController");
+const connectDB = require('./db');
+
 
 const app = express();
+connectDB();
 app.use(cors())
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -21,6 +25,8 @@ const sendTokenResponse = (token, res) => {
     })
   );
 };
+
+app.post('/api/mapMobileNumber', mapMobileNumber);
 
 app.get("/api/greeting", (req, res) => {
   const name = req.query.name || "World";
@@ -66,13 +72,30 @@ app.post("/voice/token", (req, res) => {
   sendTokenResponse(token, res);
 });
 
-app.post("/voice", (req, res) => {
-  const To = req.body.To;
-  const response = new VoiceResponse();
-  const dial = response.dial({ callerId: config.twilio.callerId });
-  dial.number(To);
-  res.set("Content-Type", "text/xml");
-  res.send(response.toString());
+app.post("/voice", async (req, res) => {
+  const { uid, deviceId } = req.body;
+  if (!uid || !deviceId) {
+    return res.status(400).json({ error: "Missing required fields: uid or deviceId" });
+  }
+
+  try {
+    
+    const mobileNumber = await getMobileNumber(uid, deviceId);
+
+    if (!mobileNumber) {
+      return res.status(404).json({ error: "Mobile number not found" });
+    }
+
+    const response = new VoiceResponse();
+    const dial = response.dial({ callerId: config.twilio.callerId });
+    dial.number(mobileNumber);
+
+    res.set("Content-Type", "text/xml");
+    res.send(response.toString());
+  } catch (error) {
+    console.error("Error processing voice request:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 app.post("/voice/incoming", (req, res) => {
